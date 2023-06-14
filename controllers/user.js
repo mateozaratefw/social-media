@@ -5,6 +5,7 @@ const path = require("path");
 
 const User = require('../models/User');
 const jwt = require('../services/jwt');
+const followService = require("../services/follow.service");
 
 const test = (req, res) => {
   return res.send({
@@ -126,17 +127,21 @@ const profile = (req, res) => {
   User.findById(id)
     .select({ password: 0, role: 0 })
     .exec()
-    .then((userProfile) => {
+    .then(async (userProfile) => {
       if (!userProfile) {
         return res.status(404).send({
           message: 'El user no existe',
           status: 'error',
         });
       }
+      console.log(req.user);
+      const followInfo = await followService.followThisUser(req.user.id, id);
 
       return res.status(200).send({
         status: 'success',
-        userProfile,
+        user: userProfile,
+        following: followInfo.following,
+        follower: followInfo.follower,
       });
     })
     .catch((err) => {
@@ -165,13 +170,16 @@ const list = (req, res) => {
   User.find()
     .sort('_id')
     .paginate(page, itemsPerPage)
-    .then((users, total) => {
+    .then(async (users, total) => {
       if (!users) {
         return res.status(404).send({
           message: 'No hay usuarios disponibles',
           status: 'error',
         });
       }
+
+      const followUserIds = await followService.followUserIds(req.user.id);
+
       return res.status(200).send({
         status: 'success',
         users,
@@ -179,6 +187,8 @@ const list = (req, res) => {
         page,
         itemsPerPage,
         pages: Math.ceil(total / itemsPerPage),
+        user_following: followUserIds.following,
+        user_follow_me: followUserIds.followers,
       });
     })
     .catch((err) => {
